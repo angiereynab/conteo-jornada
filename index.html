@@ -219,16 +219,8 @@ $("pAdd").onclick = () => {
 /* Cálculo de hoy: solo cuenta el tramo que cae dentro de hoy */
 function todayMs(now){
   const s0 = todayStart();
-  /* Une los tramos que se traslapan para no contar dos veces el mismo tiempo */
-  const iv = S.tasks.map(t=>[Math.max(t.start,s0), t.end||now]).filter(a=>a[1]>a[0]).sort((a,b)=>a[0]-b[0]);
-  let tot=0, cs=null, ce=null;
-  for(const [s,e] of iv){
-    if(cs===null){ cs=s; ce=e; }
-    else if(s<=ce){ ce=Math.max(ce,e); }
-    else { tot+=ce-cs; cs=s; ce=e; }
-  }
-  if(cs!==null) tot+=ce-cs;
-  return tot;
+  /* Suma la duración de cada tarea, aunque coincidan en el tiempo */
+  return S.tasks.reduce((a,t)=>{ const e=t.end||now, s=Math.max(t.start,s0); return a+Math.max(0,e-s); },0);
 }
 
 function render(){
