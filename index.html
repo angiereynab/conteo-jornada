@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Conteo de jornada</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#e9efee;--card:#f8fbfa;--ink:#12302f;--mute:#5a7371;--line:#c6d6d3;--acc:#0f7b6c;--acc-ink:#fff;--warn:#d9480f;--track:#d3e1de;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1b1a;--card:#162826;--ink:#e3f0ee;--mute:#8fb0ac;--line:#2a4440;--acc:#3ccdb5;--acc-ink:#06201c;--warn:#ff8a4c;--track:#233b38;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0e1b1a;--card:#162826;--ink:#e3f0ee;--mute:#8fb0ac;--line:#2a4440;--acc:#3ccdb5;--acc-ink:#06201c;--warn:#ff8a4c;color-scheme:dark}
+*{box-sizing:border-box}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font-family:"Bricolage Grotesque",system-ui,sans-serif;line-height:1.45}
+main{max-width:640px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:1.5rem;font-weight:800;margin:8px 0 18px;letter-spacing:-.01em}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
+.num{font-variant-numeric:tabular-nums}
+.goal{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.big{font-size:2.6rem;font-weight:800;letter-spacing:-.02em}
+.mute{color:var(--mute);font-size:.9rem}
+.bar{height:14px;background:var(--track);border-radius:7px;overflow:hidden;margin:12px 0 6px}
+.bar i{display:block;height:100%;width:0;background:var(--acc);transition:width .6s}
+.bar.done i{background:var(--warn)}
+label{display:block;font-size:.85rem;color:var(--mute);margin:12px 0 4px}
+input{width:100%;font:inherit;padding:11px 12px;border-radius:9px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+button{font:inherit;font-weight:600;border:0;border-radius:9px;padding:12px 16px;background:var(--acc);color:var(--acc-ink);cursor:pointer}
+button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+button.stop{background:var(--warn);color:#fff}
+button:focus-visible,input:focus-visible{outline:3px solid var(--warn);outline-offset:2px}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
+.active .timer{font-size:3rem;font-weight:800;letter-spacing:-.02em;margin:6px 0}
+.active h2{margin:0;font-size:1.15rem}
+.banner{background:var(--warn);color:#fff;border-radius:12px;padding:14px 16px;margin-bottom:14px;font-weight:600;display:none;justify-content:space-between;align-items:center;gap:10px}
+.banner.show{display:flex}
+.banner button{background:#fff;color:#7a2a05;padding:8px 12px}
+ul{list-style:none;padding:0;margin:0}
+li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 0;border-top:1px solid var(--line)}
+li:first-child{border-top:0}
+li b{display:block}
+li button{padding:6px 10px;font-size:.85rem}
+li.editing{display:block}
+li.editing button{padding:10px 14px;font-size:1rem}
+.empty{color:var(--mute);margin:0}
+.wrap{overflow-x:auto}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#confetti{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:50}
+</style>
+</head>
+<body>
+<main>
+  <h1>Conteo de jornada</h1>
+
+  <div class="banner" id="banner" role="alert"><span id="bannerMsg"></span><button id="bannerOk">Entendido</button></div>
+
+  <section class="card" aria-label="Meta del día">
+    <div class="goal">
+      <div><div class="mute">Acumulado hoy</div><div class="big num" id="total">0:00:00</div></div>
+      <div class="mute" id="goalMsg">Meta: 9 horas</div>
+    </div>
+    <div class="bar" id="bar"><i id="barFill"></i></div>
+    <div class="mute num" id="remain"></div>
+  </section>
+
+  <section class="card active" id="activeCard" hidden aria-label="Tarea en curso">
+    <div class="mute">En curso</div>
+    <h2 id="aName"></h2>
+    <div class="timer num" id="aTimer">0:00:00</div>
+    <div class="mute num" id="aInfo"></div>
+    <div class="row"><button class="stop" id="closeBtn">Cerrar tarea</button></div>
+  </section>
+
+  <section class="card" id="newCard" aria-label="Nueva tarea">
+    <div style="font-weight:600">Abrir una tarea</div>
+    <label for="name">Nombre de la tarea</label>
+    <input id="name" maxlength="80" placeholder="Ej. Revisar pedidos" autocomplete="off">
+    <label for="start">Hora en que se abrió</label>
+    <input id="start" type="datetime-local">
+    <div class="row">
+      <button id="openBtn">Abrir tarea</button>
+      <button class="ghost" id="notifBtn">Activar notificaciones</button>
+    </div>
+    <div class="mute" style="margin-top:10px">La alarma suena cada hora transcurrida. Deja esta pestaña abierta para oírla.</div>
+  </section>
+
+  <section class="card" aria-label="Registrar tarea ya cerrada">
+    <div style="font-weight:600">Registrar una tarea ya cerrada</div>
+    <label for="pName">Nombre de la tarea</label>
+    <input id="pName" maxlength="80" placeholder="Ej. Llamadas de la mañana" autocomplete="off">
+    <div class="two">
+      <div><label for="pStart">Hora de inicio</label><input id="pStart" type="time"></div>
+      <div><label for="pEnd">Hora de fin</label><input id="pEnd" type="time"></div>
+    </div>
+    <div class="row"><button id="pAdd">Agregar al conteo</button></div>
+    <div class="mute" id="pMsg" style="margin-top:10px" role="status"></div>
+  </section>
+
+  <section class="card" aria-label="Historial de hoy">
+    <div style="font-weight:600;margin-bottom:6px">Tareas de hoy</div>
+    <div class="wrap"><ul id="list"></ul></div>
+    <div class="row"><button class="ghost" id="clearBtn">Borrar historial</button></div>
+  </section>
+</main>
+
+<canvas id="confetti" aria-hidden="true"></canvas>
+<script>
+const GOAL = 9*3600*1000, HOUR = 3600*1000, KEY = "conteo-jornada-v1";
+let S = {tasks:[], goalDay:""};
+try{ const r = localStorage.getItem(KEY); if(r) S = JSON.parse(r); }catch(e){}
+if(!S.tasks) S.tasks=[];
+const $ = id => document.getElementById(id);
+const save = () => { try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} };
+const pad = n => String(n).padStart(2,"0");
+const fmt = ms => { ms=Math.max(0,Math.floor(ms/1000)); return Math.floor(ms/3600)+":"+pad(Math.floor(ms%3600/60))+":"+pad(ms%60); };
+const hm = t => new Date(t).toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit"});
+const dayKey = t => { const d=new Date(t); return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); };
+const todayStart = () => { const d=new Date(); d.setHours(0,0,0,0); return d.getTime(); };
+const toLocalInput = t => { const d=new Date(t); return dayKey(t)+"T"+pad(d.getHours())+":"+pad(d.getMinutes()); };
+const esc = s => s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const openTask = () => S.tasks.find(t=>!t.end);
+
+/* Confeti */
+function confetti(){
+  if(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const c=$("confetti"), g=c.getContext("2d"), dpr=window.devicePixelRatio||1;
+  c.width=innerWidth*dpr; c.height=innerHeight*dpr; g.scale(dpr,dpr);
+  const cols=["#0f7b6c","#3ccdb5","#d9480f","#ffc53d","#7c5cff","#ff5c8a"];
+  const P=Array.from({length:180},()=>({x:Math.random()*innerWidth,y:-20-Math.random()*innerHeight*.5,w:6+Math.random()*6,h:8+Math.random()*8,vx:-2+Math.random()*4,vy:2+Math.random()*4,r:Math.random()*6.28,vr:-.2+Math.random()*.4,c:cols[Math.floor(Math.random()*cols.length)]}));
+  const t0=performance.now();
+  (function f(t){
+    g.clearRect(0,0,innerWidth,innerHeight); let alive=false;
+    P.forEach(p=>{ p.x+=p.vx; p.y+=p.vy; p.vy+=.04; p.r+=p.vr;
+      if(p.y<innerHeight+20){ alive=true; g.save(); g.translate(p.x,p.y); g.rotate(p.r); g.fillStyle=p.c; g.fillRect(-p.w/2,-p.h/2,p.w,p.h); g.restore(); } });
+    if(alive && t-t0<8000) requestAnimationFrame(f); else g.clearRect(0,0,innerWidth,innerHeight);
+  })(t0);
+}
+
+/* Sonido */
+let ctx;
+function beep(times=3){
+  try{
+    ctx = ctx || new (window.AudioContext||window.webkitAudioContext)();
+    if(ctx.state==="suspended") ctx.resume();
+    for(let i=0;i<times;i++){
+      const o=ctx.createOscillator(), g=ctx.createGain(), t=ctx.currentTime+i*.45;
+      o.type="sine"; o.frequency.value=880; o.connect(g); g.connect(ctx.destination);
+      g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(.4,t+.03); g.gain.exponentialRampToValueAtTime(.0001,t+.35);
+      o.start(t); o.stop(t+.4);
+    }
+  }catch(e){}
+}
+function alertUser(msg){
+  $("bannerMsg").textContent = msg; $("banner").classList.add("show");
+  beep(4);
+  try{ if("Notification" in window && Notification.permission==="granted") new Notification("Conteo de jornada",{body:msg}); }catch(e){}
+  try{ navigator.vibrate && navigator.vibrate([300,150,300]); }catch(e){}
+}
+$("bannerOk").onclick = () => $("banner").classList.remove("show");
+
+/* Acciones */
+$("start").value = toLocalInput(Date.now());
+$("openBtn").onclick = () => {
+  if(openTask()) return;
+  const name = $("name").value.trim();
+  if(!name){ $("name").focus(); return; }
+  let st = new Date($("start").value).getTime();
+  if(!st || st>Date.now()) st = Date.now();
+  S.tasks.push({id:Date.now(), name, start:st, end:null, hours:0});
+  $("name").value=""; beep(1); save();
+  const t = openTask(); t.hours = Math.floor((Date.now()-t.start)/HOUR); save(); render();
+};
+$("closeBtn").onclick = () => { const t=openTask(); if(t){ t.end=Date.now(); save(); render(); } };
+$("notifBtn").onclick = async () => {
+  beep(1);
+  try{
+    if(!("Notification" in window)){ $("notifBtn").textContent="No disponible"; return; }
+    const p = await Notification.requestPermission();
+    $("notifBtn").textContent = p==="granted" ? "Notificaciones activas" : "Notificaciones bloqueadas";
+  }catch(e){}
+};
+$("clearBtn").onclick = () => { if(confirm("¿Borrar todas las tareas cerradas y abiertas?")){ S.tasks=[]; S.goalDay=""; save(); render(); } };
+let editId = null;
+const tv = t => { const d=new Date(t); return pad(d.getHours())+":"+pad(d.getMinutes()); };
+function rowHtml(x){
+  if(x.id===editId) return `<li class="editing"><label>Nombre de la tarea</label><input data-f="name" maxlength="80" value="${esc(x.name)}"><div class="two"><div><label>Hora de inicio</label><input data-f="start" type="time" value="${tv(x.start)}"></div><div><label>Hora de fin</label><input data-f="end" type="time" value="${tv(x.end)}"></div></div><div class="mute" data-err role="status" style="margin-top:8px"></div><div class="row"><button data-save="${x.id}">Guardar cambios</button><button class="ghost" data-cancel="1">Cancelar</button></div></li>`;
+  return `<li><div><b>${esc(x.name)}</b><span class="mute num">${hm(x.start)} a ${hm(x.end)}</span></div><div style="display:flex;gap:8px;align-items:center"><span class="num">${fmt(x.end-x.start)}</span><button class="ghost" data-edit="${x.id}" aria-label="Editar ${esc(x.name)}">Editar</button><button class="ghost" data-del="${x.id}" aria-label="Borrar ${esc(x.name)}">Borrar</button></div></li>`;
+}
+$("list").onclick = e => {
+  const del=e.target.closest("[data-del]"), ed=e.target.closest("[data-edit]"), sv=e.target.closest("[data-save]"), cn=e.target.closest("[data-cancel]");
+  if(del){ S.tasks=S.tasks.filter(t=>t.id!=del.dataset.del); if(editId==del.dataset.del) editId=null; save(); render(); }
+  else if(ed){ editId=Number(ed.dataset.edit); render(); }
+  else if(cn){ editId=null; render(); }
+  else if(sv){
+    const t=S.tasks.find(x=>x.id==sv.dataset.save), li=sv.closest("li"); if(!t) return;
+    const f=k=>li.querySelector('[data-f="'+k+'"]').value, err=li.querySelector("[data-err]");
+    const mk=(v,base)=>{ if(!v) return NaN; const [h,m]=v.split(":").map(Number); const d=new Date(base); d.setHours(h,m,0,0); return d.getTime(); };
+    const name=f("name").trim(), st=mk(f("start"),t.start), en=mk(f("end"),t.end);
+    if(!name){ err.textContent="Escribe el nombre de la tarea."; return; }
+    if(isNaN(st)||isNaN(en)){ err.textContent="Indica la hora de inicio y la de fin."; return; }
+    if(en<=st){ err.textContent="La hora de fin debe ser posterior a la de inicio."; return; }
+    if(en>Date.now()){ err.textContent="La hora de fin no puede ser futura."; return; }
+    t.name=name; t.start=st; t.end=en; editId=null; save(); render();
+  }
+};
+
+/* Tareas ya cerradas (se registran con fecha de hoy) */
+$("pEnd").value = pad(new Date().getHours())+":"+pad(new Date().getMinutes());
+$("pAdd").onclick = () => {
+  const msg = $("pMsg"), name = $("pName").value.trim();
+  const mk = v => { if(!v) return NaN; const [h,m]=v.split(":").map(Number); const d=new Date(); d.setHours(h,m,0,0); return d.getTime(); };
+  const st = mk($("pStart").value), en = mk($("pEnd").value);
+  if(!name){ msg.textContent="Escribe el nombre de la tarea."; $("pName").focus(); return; }
+  if(isNaN(st)||isNaN(en)){ msg.textContent="Indica la hora de inicio y la de fin."; return; }
+  if(en<=st){ msg.textContent="La hora de fin debe ser posterior a la de inicio."; return; }
+  if(en>Date.now()){ msg.textContent="La hora de fin no puede ser futura."; return; }
+  S.tasks.push({id:Date.now(), name, start:st, end:en, hours:0});
+  save(); render();
+  msg.textContent = "Agregada: "+name+" ("+fmt(en-st)+").";
+  $("pName").value=""; $("pStart").value="";
+};
+
+/* Cálculo de hoy: solo cuenta el tramo que cae dentro de hoy */
+function todayMs(now){
+  const s0 = todayStart();
+  return S.tasks.reduce((a,t)=>{ const e=t.end||now, s=Math.max(t.start,s0); return a+Math.max(0,e-s); },0);
+}
+
+function render(){
+  const t = openTask(), now = Date.now();
+  $("activeCard").hidden = !t; $("newCard").hidden = !!t;
+  if(t){ $("aName").textContent = t.name; $("aInfo").textContent = "Abierta a las "+hm(t.start); }
+  const done = S.tasks.filter(x=>x.end && x.end>=todayStart()).sort((a,b)=>b.end-a.end);
+  $("list").innerHTML = done.length
+    ? done.map(rowHtml).join("")
+    : '<p class="empty">Aún no cierras ninguna tarea hoy.</p>';
+  tick();
+}
+
+function tick(){
+  const now = Date.now(), t = openTask(), tot = todayMs(now);
+  $("total").textContent = fmt(tot);
+  const pct = Math.min(100, tot/GOAL*100);
+  $("barFill").style.width = pct+"%";
+  $("bar").classList.toggle("done", tot>=GOAL);
+  if(tot>=GOAL){
+    $("goalMsg").textContent = "Meta cumplida";
+    $("remain").textContent = tot>GOAL ? "Extra: "+fmt(tot-GOAL) : "";
+  } else {
+    $("goalMsg").textContent = "Meta: 9 horas ("+Math.floor(pct)+"%)";
+    $("remain").textContent = "Faltan "+fmt(GOAL-tot);
+  }
+  if(t){
+    const el = now - t.start;
+    $("aTimer").textContent = fmt(el);
+    const next = (Math.floor(el/HOUR)+1)*HOUR - el;
+    $("aInfo").textContent = "Abierta a las "+hm(t.start)+" · próxima alarma en "+fmt(next);
+    const h = Math.floor(el/HOUR);
+    if(h > t.hours){
+      t.hours = h; save();
+      alertUser("«"+t.name+"» lleva "+h+(h===1?" hora":" horas")+" abierta.");
+    }
+    document.title = fmt(el)+" · "+t.name;
+  } else document.title = "Conteo de jornada";
+  const dk = dayKey(now);
+  if(tot>=GOAL && S.goalDay!==dk){
+    S.goalDay = dk; save();
+    alertUser("¡Meta cumplida! Ya juntaste 9 horas hoy.");
+    confetti();
+  }
+}
+render();
+setInterval(tick, 1000);
+document.addEventListener("visibilitychange", tick);
+</script>
+</body>
+</html>
